@@ -2,17 +2,19 @@
 
 usage: aTenuWait.py [-h] [-l LOCATIONS] [-e BEDFILE] bamFiles refGenome output
 
-The 'aTenuWait' program makes an attempt to adjudicate real variants from
-noise. The program uses .bam files (aligned, collapsed reads) and identifies
-variants (SNVs, INDELs) at all positions via freebayes. If DNA has been
-sequenced in duplicate, then each position is compared and only variants
-present in both duplicates are preserved. Variants are then passed to VEP for
-variant classification. The gene, principle varient effect, and predictive
-effects on protein function (via PolyPhen and Sift in VEP) are returned. In
-addition, read depth and VAF are also returned in a final .vcf file. Either -l
-or -e flag must be used (but not both!).
+The 'aTenuWait' program makes an attempt to adjudicate real\n 
+variants from noise. The program uses .bam files (aligned, \n
+collapsed reads) and identifies variants (SNVs, INDELs) at\n 
+all positions via freebayes. If DNA has been sequenced in \n
+duplicate, then each position is compared and only variants \n
+present in both duplicates are preserved. Variants are then\n
+passed to VEP for variant classification. The gene, principle\n 
+varient effect, and predictive effects on protein function \n
+(via PolyPhen and Sift in VEP) are returned. In addition, read\n
+depth and VAF are also returned in a final .vcf file. Either\n
+-l or -e flag must be used (but not both!).
 
-positional arguments:
+positional arguments:\n
   bamFiles              A .txt file with a list of .bam files (and location if
                         not in working directory
   refGenome             Identify reference genome (and location if not in

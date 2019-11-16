@@ -1,6 +1,6 @@
 #!/usr/local/Python/3.6.3/bin/python3
 
-## Example: ./aTenuWait.py -b myBams.txt -d True -f /home/Genomes/Human/B37/human_g1k_v37_decoy_phiXAdaptr.fasta -l 12:25398280-25398292 -o ~/ErrorClass/OutputData/
+## Example: ./aTenuWait.py myBams.txt /home/Genomes/Human/B37/human_g1k_v37_decoy_phiXAdaptr.fasta ~/ErrorClass/OutputData/ -l 12:25398280-25398292
 
 import subprocess
 import argparse
@@ -8,6 +8,7 @@ import os, sys, re
 import operator
 from postVep import postVepParser
 from postVepVaf import postVepAddVaf
+from varClassifier import postVepVafClass
 
 def main():
 	parser = argparse.ArgumentParser(description="""
@@ -18,19 +19,26 @@ def main():
 		duplicates are preserved. Variants are then passed to VEP for variant classification.  
 		The gene, principle varient effect, and predictive effects on protein function 
 		(via PolyPhen and Sift in VEP) are returned. In addition, read depth and VAF are
-		also returned in a final .vcf file.
+		also returned in a final .vcf file. Either -l or -e flag must be used (but not both!).
 		""")
-	parser.add_argument('-b', '--bamFiles', required=True, help='A .txt file with a list of .bam files (and location if not in working directory')
-	parser.add_argument('-d', '--duplicates', choices=['True','False'], required=True, help='Was your sequencing data done in duplicate?')
-	parser.add_argument('-f', '--refGenome', required=True, help='Identify reference genome (and location if not in working directory') 
-	parser.add_argument('-l', '--locations', required=True, help='Target location(s) of interest or provide a bedfile')
-	parser.add_argument('-o', '--output', required=True, help='Target directory for output files created by aTenuWait')
+	parser.add_argument('bamFiles', help='A .txt file with a list of .bam files (and location if not in working directory')
+	parser.add_argument('refGenome', help='Identify reference genome (and location if not in working directory')
+	parser.add_argument('output', help='Target directory for output files created by aTenuWait') 
+	parser.add_argument('-l', '--locations', help='Target location(s) of interest formatted as chr:pos1-pos2 (ex: 12:25398280-25398292)', dest = 'locations')
+	parser.add_argument('-e', '--bedfile', help='Target locations of interest in a bedfile', dest = 'bedFile')
 	args = parser.parse_args()
 
 	bamFiles = args.bamFiles
 	refGenome = args.refGenome
-	locations = args.locations
 	dirOut = args.output
+	if args.locations:
+		if args.bedFile:
+			print('Use either -l or -e flag, but not both')
+			exit(1)
+		else:
+			locations = args.locations
+	if args.bedFile:
+			bedFile = args.bedFile
 
 	with open(bamFiles,'r') as bamList:
 		bamCount = 0
@@ -38,13 +46,16 @@ def main():
 			bams = bams.rstrip()
 			bamCount += 1
 			varOut = bams[:-4]+'.fb.var.vcf'
-			cmdLine = "freebayes -f {} -r {} -C 1 -F 0 -K -X -u --report-monomorphic {} > {}".format(refGenome, locations, bams, dirOut+varOut)
+			if args.locations:
+				cmdLine = "freebayes -f {} -r {} -C 1 -F 0 -K -X -u --report-monomorphic {} > {}".format(refGenome, locations, bams, dirOut+varOut)
+			if args.bedFile:
+				cmdLine = "freebayes -f {} -t {} -C 1 -F 0 -K -X -u --report-monomorphic {} > {}".format(refGenome, bedFile, bams, dirOut+varOut)
 			cmdLine_run = subprocess.run(cmdLine, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			if cmdLine_run.returncode != 0:
 				print("FAILED! Unable to run Freebayes for variant detection.")
 				exit(1)	
 			else:
-				print("freebayes generation of {} complete!\n".format(varOut))
+				print("freebayes generation of {} complete!".format(varOut))
 
 			dataIn = dirOut+varOut
 			snvVarOut = dirOut+varOut[:-4]+'.pos.snv.vcf'				#fileName of SNVs to be checked against the other duplicate
@@ -132,7 +143,7 @@ def main():
 							for values in baseDictSorted:
 								temp = values[1]
 								countsPos.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(Chr,values[0],temp[0],temp[1],temp[2],temp[3],temp[4]))	
-			print('Count files and variant files written!')
+			print('Count files and variant files written.')
 
 			if bamCount == 1:
 				compSnvFile1 = snvVarOut
@@ -153,8 +164,8 @@ def main():
 									temp = vars1.split()
 									shareVar.write(temp[0]+'\t'+temp[1]+'\t'+'.'+'\t'+temp[2]+'\t'+temp[3]+'\t'+'.'+'\t'+'PASS'+'\t'+'.\n')
 									#print(temp[0]+'\t'+temp[1]+'\t'+'.'+'\t'+temp[2]+'\t'+temp[3]+'\t'+'.'+'\t'+'PASS'+'\t'+'.\n')
-				print('The shared variant file has been written as {}.'.format(sharedSnvOut))
-	
+				print('The shared variant file has been written as {}'.format(sharedSnvOut))
+				print('Accessing VEP. A while this may take. Patient, you must be.')
 	#vepOpenCmd = 'module load vep'
 	#vepOpenCmd_run = subprocess.run(vepOpenCmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	# include --humdiv : HumDiv-trained model should be used for evaluating rare alleles at loci potentially involved in complex phenotypes, dense mapping of regions identified by genome-wide association studies, and analysis of natural selection from sequence data, where even mildly deleterious alleles must be treated as damaging.
@@ -175,6 +186,9 @@ def main():
 	postVepAddVaf(bam1counts,vepParsed,vepVaf)
 	print('The variant allele frequency information has been added and saved as {}'.format(vepVaf))
 
+	adjNoise = vepVaf[:-4]+'adj.tsv'
+	postVepVafClass(vepVaf,adjNoise)
+	print('Final file with adjudicated variants has been added and saved as {}'.format(adjNoise))
 
 	sys.exit(0)
 

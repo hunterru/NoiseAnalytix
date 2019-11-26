@@ -41,10 +41,9 @@ def postSSCparser(inputFile,outputFile):
 						tDP = bits[5:]
 					if bits.startswith('N_AF='):
 						nAF = bits[5:]
-					if bits.startswith('T_DP='):
+					if bits.startswith('N_DP='):
 						nDP = bits[5:]
 				parsedVars.write(Chr+'\t'+Pos+'\t'+Type+'\t'+wt+'\t'+mu+'\t'+tDP+'\t'+tAF+'\t'+nDP+'\t'+nAF+'\n')
-
 	cmdLine = "gzip {}".format(inputFile)
 	cmdLine_run = subprocess.run(cmdLine, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	if cmdLine_run.returncode != 0:

@@ -12,9 +12,11 @@ import argparse
 import os, sys, re
 import operator
 from postSSC import postSSCparser
-from postParser import commonVars
-from postVep import postVepParser
-from postVepVaf import postVepAddVaf
+from fastPostParser import commonVarsNew
+from vepPasser import vepVars
+from postVepFirstCmd import postVepParserFirst
+from postVepSecond import postVepParserSecond
+from addVaf2Vep import postVepAddVaf
 from varClassifier import postVepVafClass
 
 def main():
@@ -46,9 +48,6 @@ def main():
 	startDir = currPath + '/'
 	if os.path.exists(dirOut) == 0:
 		os.mkdir(dirOut)
-	countOut = dirOut + '/countFolder'
-	if os.path.exists(countOut) == 0:
-		os.mkdir(countOut)
 	mpOut = dirOut + '/mpFolder'
 	if os.path.exists(mpOut) == 0:
 		os.mkdir(mpOut)
@@ -67,8 +66,11 @@ def main():
 		bamCount = 0
 		for bams in bamFileList:
 	## Step 1. pass bam files to bcftools mpileup
-			bamCount += 1			
+			bamCount += 1
+			print('Bam Counter at:',bamCount)			
 			bams = bams.rstrip()
+			if bamCount%3 == 2:
+				bam1name = bams
 			bamsIn = bamFiles+bams
 			if bamCount%3 == 1:
 				NORMAL = bamsIn
@@ -109,8 +111,7 @@ def main():
 					print('Parsed SSC saved at {}'.format(parsVAR2+'.gz'))
 	## Step 3. Using both parsed .vcf files, identify variants that are only present in both.
 					print('Identifying common variants.')
-					commonVars(parsVAR1+'.gz',parsVAR2+'.gz',CommonOut,VepIn)
-					print('Common variants for VEP saved at {}'.format(VepIn))
+					commonVarsNew(parsVAR1+'.gz',parsVAR2+'.gz',compOut,VepIn)
 
 				## vepOpenCmd = 'module load vep'
 				## vepOpenCmd_run = subprocess.run(vepOpenCmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -125,69 +126,21 @@ def main():
 						exit(1)
 					if os.stat(VepIn).st_size > 0:
 						print('Accessing VEP for potential variants. A while this may take. Patient, you must be.')
-						vepCmd = 'vep --database -a GRCh37 --port 3337 --sift b --polyphen b --humdiv --check_existing --symbol --force -i {} -o {}'.format(VepIn,VepOutput)
-						vepCmd_run = subprocess.run(vepCmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)	
-						if vepCmd_run.returncode != 0:
-							print("FAILED! Unable to run VEP for variant classification.")
-							exit(1)
-						else:
-							print("VEP output generated and saved to {}".format(VepOutput))
+						vepVars(VepIn,VepOutput,vepOut)
 
-						VepParsed = VepOutput[:-4]+'.parsed.tsv'
-						postVepParser(VepOutput,VepParsed)
-						print('The VEP SNV output has been parsed and saved as a .tsv file at {}'.format(VepParsed))
+						VepParsedOne = VepOutput[:-4]+'.parsed1.tsv'
+						VepParsedTwo = VepOutput[:-4]+'.parsed2.tsv'
+						postVepParserFirst(VepOutput+'.gz',VepParsedOne,vepOut)
+						postVepParserSecond(VepParsedOne+'.gz',VepParsedTwo)
 
-# everything above is working
+						
+						adjNoise = finalOut+'/'+bam1name+'.adj_var.tsv'
+						postVepAddVaf(parsVAR1+'.gz',VepParsedTwo+'.gz',adjNoise)
 
-						VepVaf = VepParsed[:-4]+'.VAF.tsv'
-						postVepAddVaf(bam1counts,VepParsed,VepVaf)
-						print('The allele counts and VAF have been added to the parsed SNV VEP.tsv file and saved at {}'.format(vepVaf))
-
-						adjNoise = finalOut+'/'+bam1Name+'.snv.adj_var.tsv'
-						postVepVafClass(vepVaf,adjNoise)
-						with open(adjNoise) as adj:
-							for i, l in enumerate(adj):
-								pass
-							varCounterOut = i
-						print('Final file with {} adjudicated SNV variants has been created and saved as {}'.format(varCounterOut, adjNoise))
 					elif os.stat(sharedSnvOut).st_size == 0:
-						print('There are no shared variants between the two .bam files. VEP was not run on SNV data!')
+						print('There are no shared variants between the two .bam files. VEP was not run on data!')
 	
-#				if os.stat(sharedIndelOut).st_size > 0:
-#					print('Accessing VEP for potential INDEL variants. A while this may take. Patient, you must be.')
-#					vepOutput = vepOut+'/'+bam1Name+'.vep.indel.txt'
-#					vepCmd = 'vep --database -a GRCh37 --port 3337 --sift b --polyphen b --humdiv --check_existing --symbol --force -i {} -o {}'.format(sharedIndelOut,vepOutput)
-#					vepCmd_run = subprocess.run(vepCmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)	
-#					if vepCmd_run.returncode != 0:
-#						print("FAILED! Unable to run VEP for variant classification.")
-#						exit(1)
-#					else:
-#						print("VEP INDEL output generated and saved to {}".format(vepOutput))
-#			
-#					vepParsed = vepOutput[:-4]+'.parsed.tsv'
-#					postVepParser(vepOutput,vepParsed)
-#					print('The VEP INDEL output has been parsed and saved as a .tsv file at {}'.format(vepParsed))
-#
-#					vepVaf = vepParsed[:-4]+'.VAF.tsv'
-#					postVepAddVaf(bam1counts,vepParsed,vepVaf)
-#					print('The allele counts and VAF have been added to the parsed INDEL VEP.tsv file and saved at {}'.format(vepVaf))
-#
-#					adjNoise = finalOut+'/'+bam1Name+'.indel.adj_var.tsv'
-#					postVepVafClass(vepVaf,adjNoise)
-#					with open(adjNoise) as adj:
-#						for i, l in enumerate(adj):
-#							pass
-#						varCounterOut = i
-#					print('Final file with {} adjudicated INDEL variants has been created and saved as {}'.format(varCounterOut, adjNoise))
-#				elif os.stat(sharedIndelOut).st_size == 0:
-#						print('There are no shared INDELs between the two .bam files. VEP was not run on INDEL data!')
-#	
-#				bamCount = 0
-#		
 		sys.exit(0)
-#
-
-#vep --database -a GRCh37 --port 3337 --sift b --polyphen b --humdiv --check_existing --symbol --force -i sharedVars.vcf -o vepOutput.txt
 
 if __name__=='__main__':
 	main()
